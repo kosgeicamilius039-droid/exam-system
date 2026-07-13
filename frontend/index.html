@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ExamSystem — Sign In</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f0f2f5; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .card {
+      background: #fff; border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.10);
+      padding: 2.5rem 2rem; width: 100%; max-width: 400px;
+    }
+    .logo { text-align: center; margin-bottom: 2rem; }
+    .logo h1 { font-size: 1.4rem; font-weight: 700; color: #1a1a2e; }
+    .logo p  { font-size: 0.85rem; color: #6b7280; margin-top: 4px; }
+    label { display: block; font-size: .82rem; font-weight: 600; color: #374151; margin-bottom: 5px; }
+    input[type="text"], input[type="password"] {
+      width: 100%; padding: .65rem .85rem; border: 1.5px solid #d1d5db;
+      border-radius: 8px; font-size: .95rem; outline: none; transition: border-color .2s;
+    }
+    input:focus { border-color: #4f46e5; }
+    input.error { border-color: #ef4444; }
+    .field { margin-bottom: 1.2rem; }
+    .field-error { font-size: .78rem; color: #ef4444; margin-top: 4px; display: none; }
+    .field-error.visible { display: block; }
+    .btn {
+      width: 100%; padding: .75rem; background: #4f46e5; color: #fff;
+      border: none; border-radius: 8px; font-size: 1rem; font-weight: 600;
+      cursor: pointer; transition: background .2s; margin-top: .5rem;
+    }
+    .btn:hover { background: #4338ca; }
+    .btn:disabled { background: #a5b4fc; cursor: not-allowed; }
+    .alert { padding: .75rem 1rem; border-radius: 8px; font-size: .88rem; margin-bottom: 1.2rem; display: none; }
+    .alert.error   { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; display: block; }
+    .alert.success { background: #f0fdf4; color: #166534; border: 1px solid #86efac; display: block; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <h1>ExamSystem</h1>
+      <p>Internal Examination Management</p>
+    </div>
+    <div id="alertEl" class="alert" role="alert"></div>
+    <form id="login-form" novalidate>
+      <div class="field">
+        <label for="username">Username</label>
+        <input type="text" id="username" autocomplete="username" placeholder="Enter your username">
+        <span class="field-error" id="username-error">Username is required.</span>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="current-password" placeholder="Enter your password">
+        <span class="field-error" id="password-error">Password is required.</span>
+      </div>
+      <button class="btn" type="submit" id="submit-btn">Sign in</button>
+    </form>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script>
+    const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // If already logged in, skip to the right dashboard
+    (async () => {
+      const { data: { session } } = await _sb.auth.getSession();
+      if (session) {
+        const { data: profile } = await _sb.from('profiles').select('role').eq('id', session.user.id).single();
+        if (profile) {
+          window.location.href = profile.role === 'admin' ? 'audit_dashboard.html' : 'teacher_dashboard.html';
+        }
+      }
+    })();
+
+    const form    = document.getElementById('login-form');
+    const alertEl = document.getElementById('alertEl');
+    const btn     = document.getElementById('submit-btn');
+
+    function setFieldError(fieldId, errorId, show) {
+      document.getElementById(fieldId).classList.toggle('error', show);
+      document.getElementById(errorId).classList.toggle('visible', show);
+    }
+    function showAlert(msg, type) {
+      alertEl.textContent = msg;
+      alertEl.className   = 'alert ' + type;
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+
+      let valid = true;
+      if (!username) { setFieldError('username', 'username-error', true);  valid = false; }
+      else            { setFieldError('username', 'username-error', false); }
+      if (!password)  { setFieldError('password', 'password-error', true);  valid = false; }
+      else            { setFieldError('password', 'password-error', false); }
+      if (!valid) return;
+
+      btn.disabled    = true;
+      btn.textContent = 'Signing in…';
+      alertEl.className = 'alert';
+
+      try {
+        // Accounts are stored as username@examsystem.local in Supabase Auth
+        const email = `${username.toLowerCase()}@examsystem.local`;
+        const { data, error } = await _sb.auth.signInWithPassword({ email, password });
+
+        if (error || !data.session) {
+          showAlert('Invalid username or password.', 'error');
+          return;
+        }
+
+        // Fetch role from profiles table
+        const { data: profile } = await _sb
+          .from('profiles')
+          .select('role')
+          .eq('id', data.user.id)
+          .single();
+
+        // Log the login event
+        await _sb.from('forensic_audit_log').insert({ action_taken: 'LOGIN' });
+
+        showAlert('Login successful. Redirecting…', 'success');
+        setTimeout(() => {
+          window.location.href = profile?.role === 'admin'
+            ? 'audit_dashboard.html'
+            : 'teacher_dashboard.html';
+        }, 600);
+
+      } catch (err) {
+        showAlert('Network error. Please try again.', 'error');
+      } finally {
+        btn.disabled    = false;
+        btn.textContent = 'Sign in';
+      }
+    });
+  </script>
+</body>
+</html>

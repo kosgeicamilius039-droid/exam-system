@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ExamSystem — Manage Users</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui,-apple-system,sans-serif; background:#f0f2f5; color:#1a1a2e; }
+    nav {
+      background:#1a1a2e; color:#fff; padding:.85rem 1.5rem;
+      display:flex; align-items:center; justify-content:space-between; gap:1rem;
+    }
+    nav .brand { font-weight:700; font-size:1.05rem; }
+    nav .right  { display:flex; align-items:center; gap:1rem; }
+    nav span    { color:#a5b4fc; font-size:.85rem; }
+    nav a { color:#a5b4fc; text-decoration:none; font-size:.85rem; cursor:pointer; }
+    nav a:hover { color:#fff; }
+    nav button {
+      background:none; border:1px solid #4f46e5; color:#a5b4fc;
+      padding:.35rem .85rem; border-radius:6px; cursor:pointer; font-size:.82rem; transition:background .2s;
+    }
+    nav button:hover { background:#4f46e5; color:#fff; }
+    .container { max-width:760px; margin:2rem auto; padding:0 1rem; }
+    h2 { font-size:1.15rem; font-weight:700; margin-bottom:1rem; }
+
+    .card {
+      background:#fff; border-radius:10px;
+      box-shadow:0 2px 8px rgba(0,0,0,.07); padding:1.5rem; margin-bottom:1.5rem;
+    }
+    .card h3 { font-size:.95rem; font-weight:600; margin-bottom:1.25rem; color:#4f46e5; }
+    .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:.85rem; }
+    label { display:block; font-size:.8rem; font-weight:600; color:#374151; margin-bottom:4px; }
+    input[type="text"], input[type="password"], select {
+      width:100%; padding:.55rem .75rem; border:1.5px solid #d1d5db;
+      border-radius:7px; font-size:.9rem; outline:none; transition:border-color .2s;
+    }
+    input:focus, select:focus { border-color:#4f46e5; }
+    .btn-create {
+      margin-top:1rem; padding:.6rem 1.4rem; background:#4f46e5; color:#fff;
+      border:none; border-radius:8px; font-size:.9rem; font-weight:600;
+      cursor:pointer; transition:background .2s;
+    }
+    .btn-create:hover    { background:#4338ca; }
+    .btn-create:disabled { background:#a5b4fc; cursor:not-allowed; }
+
+    .alert { padding:.75rem 1rem; border-radius:8px; font-size:.88rem; margin-bottom:1rem; display:none; }
+    .alert.error   { background:#fef2f2; color:#b91c1c; border:1px solid #fca5a5; display:block; }
+    .alert.success { background:#f0fdf4; color:#166534; border:1px solid #86efac; display:block; }
+
+    table { width:100%; border-collapse:collapse; }
+    th {
+      background:#f8fafc; text-align:left; padding:.65rem 1rem;
+      font-size:.78rem; font-weight:600; color:#6b7280;
+      text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e5e7eb;
+    }
+    td { padding:.65rem 1rem; border-bottom:1px solid #f3f4f6; font-size:.88rem; }
+    tr:last-child td { border-bottom:none; }
+    tr:hover td { background:#f9fafb; }
+    .badge {
+      display:inline-block; padding:2px 9px; border-radius:999px;
+      font-size:.75rem; font-weight:600;
+    }
+    .badge-admin   { background:#ede9fe; color:#5b21b6; }
+    .badge-teacher { background:#dbeafe; color:#1e40af; }
+    .empty   { text-align:center; padding:2rem; color:#9ca3af; font-size:.9rem; }
+    .loading { text-align:center; padding:2rem; color:#6b7280; }
+
+    .modal-overlay {
+      position:fixed; inset:0; background:rgba(0,0,0,.45);
+      display:none; align-items:center; justify-content:center; z-index:100;
+    }
+    .modal-overlay.open { display:flex; }
+    .modal { background:#fff; border-radius:12px; padding:1.75rem; width:100%; max-width:360px; }
+    .modal h3  { font-size:1rem; font-weight:700; margin-bottom:1.25rem; }
+    .modal label { display:block; font-size:.8rem; font-weight:600; color:#374151; margin-bottom:4px; }
+    .modal input {
+      width:100%; padding:.55rem .75rem; border:1.5px solid #d1d5db;
+      border-radius:7px; font-size:.9rem; outline:none; margin-bottom:.85rem; transition:border-color .2s;
+    }
+    .modal input:focus { border-color:#4f46e5; }
+    .modal-btns { display:flex; gap:.75rem; justify-content:flex-end; margin-top:.5rem; }
+    .btn-cancel  { padding:.5rem 1rem; background:#f3f4f6; color:#374151; border:none; border-radius:7px; font-size:.88rem; cursor:pointer; }
+    .btn-primary { padding:.5rem 1.1rem; background:#4f46e5; color:#fff; border:none; border-radius:7px; font-size:.88rem; font-weight:600; cursor:pointer; }
+    .btn-primary:disabled { background:#a5b4fc; cursor:not-allowed; }
+  </style>
+</head>
+<body>
+  <nav>
+    <span class="brand">ExamSystem</span>
+    <div class="right">
+      <span id="nav-user"></span>
+      <a onclick="window.location.href='audit_dashboard.html'">Audit Log</a>
+      <button onclick="openPasswordModal()">Change password</button>
+      <button onclick="Auth.logout()">Sign out</button>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div id="alertEl" class="alert" role="alert"></div>
+
+    <!-- Create user -->
+    <div class="card">
+      <h3>Create New Account</h3>
+      <div class="form-grid">
+        <div>
+          <label for="new-username">Username</label>
+          <input type="text" id="new-username" placeholder="e.g. jane.teacher">
+        </div>
+        <div>
+          <label for="new-password">Password</label>
+          <input type="password" id="new-password" placeholder="Min 10 characters">
+        </div>
+        <div>
+          <label for="new-role">Role / Privilege level</label>
+          <select id="new-role">
+            <option value="teacher">Teacher — grade register only</option>
+            <option value="admin">Admin — full access (manage users + audit log)</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-create" id="btn-create" onclick="createUser()">Create Account</button>
+    </div>
+
+    <!-- User list -->
+    <h2>All Accounts</h2>
+    <div class="card" style="padding:0; overflow:hidden;">
+      <div id="users-container" class="loading">Loading users…</div>
+    </div>
+  </div>
+
+  <!-- Change password modal -->
+  <div class="modal-overlay" id="pwModal">
+    <div class="modal">
+      <h3>Change Password</h3>
+      <div id="pw-alert" class="alert" style="margin-bottom:.75rem"></div>
+      <label>Current Password</label>
+      <input type="password" id="pw-current">
+      <label>New Password</label>
+      <input type="password" id="pw-new" placeholder="At least 10 characters">
+      <label>Confirm New Password</label>
+      <input type="password" id="pw-confirm">
+      <div class="modal-btns">
+        <button class="btn-cancel" onclick="closePasswordModal()">Cancel</button>
+        <button class="btn-primary" id="pw-save-btn" onclick="savePassword()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="shared.js"></script>
+  <script>
+    let _session = null;
+
+    (async () => {
+      const profile = await Auth.requireRole(['admin']);
+      if (!profile) return;
+      document.getElementById('nav-user').textContent = profile.username;
+      _session = await Auth.getSession();
+      await loadUsers();
+    })();
+
+    function showAlert(msg, type) {
+      const el = document.getElementById('alertEl');
+      el.textContent = msg;
+      el.className   = 'alert ' + type;
+      setTimeout(() => el.className = 'alert', 5000);
+    }
+
+    async function loadUsers() {
+      const container = document.getElementById('users-container');
+      container.innerHTML = '<div class="loading">Loading users…</div>';
+
+      const { data: rows, error } = await sb
+        .from('profiles')
+        .select('id, username, role, created_at')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        container.innerHTML = '<div class="empty">Failed to load users.</div>';
+        return;
+      }
+
+      if (!rows.length) {
+        container.innerHTML = '<div class="empty">No accounts yet.</div>';
+        return;
+      }
+
+      let html = `<table>
+        <thead><tr>
+          <th>Username</th><th>Role</th><th>Created</th>
+        </tr></thead><tbody>`;
+
+      rows.forEach(r => {
+        const date = new Date(r.created_at).toLocaleDateString();
+        html += `<tr>
+          <td>${escHtml(r.username)}</td>
+          <td><span class="badge badge-${r.role}">${r.role}</span></td>
+          <td style="color:#6b7280">${date}</td>
+        </tr>`;
+      });
+
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    async function createUser() {
+      const username = document.getElementById('new-username').value.trim();
+      const password = document.getElementById('new-password').value;
+      const role     = document.getElementById('new-role').value;
+
+      if (!username) { showAlert('Username is required.', 'error'); return; }
+      if (!password || password.length < 10) {
+        showAlert('Password must be at least 10 characters.', 'error'); return;
+      }
+
+      const btn = document.getElementById('btn-create');
+      btn.disabled    = true;
+      btn.textContent = 'Creating…';
+
+      try {
+        const res = await fetch(`${FUNCTIONS_URL}/create-user`, {
+          method:  'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'Authorization': `Bearer ${_session.access_token}`,
+          },
+          body: JSON.stringify({ username, password, role }),
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+          showAlert(`Account "${username}" created successfully.`, 'success');
+          document.getElementById('new-username').value = '';
+          document.getElementById('new-password').value = '';
+          await loadUsers();
+        } else {
+          showAlert(data.error || 'Failed to create account.', 'error');
+        }
+      } catch (err) {
+        showAlert('Network error. Please try again.', 'error');
+      } finally {
+        btn.disabled    = false;
+        btn.textContent = 'Create Account';
+      }
+    }
+
+    function openPasswordModal()  { document.getElementById('pwModal').classList.add('open'); }
+    function closePasswordModal() {
+      document.getElementById('pwModal').classList.remove('open');
+      ['pw-current','pw-new','pw-confirm'].forEach(id => document.getElementById(id).value = '');
+      const a = document.getElementById('pw-alert'); a.textContent=''; a.className='alert';
+    }
+
+    async function savePassword() {
+      const current = document.getElementById('pw-current').value;
+      const newPw   = document.getElementById('pw-new').value;
+      const confirm = document.getElementById('pw-confirm').value;
+      const alertEl = document.getElementById('pw-alert');
+      const btn     = document.getElementById('pw-save-btn');
+
+      const showPwAlert = (msg, type) => { alertEl.textContent=msg; alertEl.className='alert '+type; };
+
+      if (!current || !newPw || !confirm) { showPwAlert('All fields are required.','error'); return; }
+      if (newPw.length < 10) { showPwAlert('New password must be at least 10 characters.','error'); return; }
+      if (newPw !== confirm) { showPwAlert('Passwords do not match.','error'); return; }
+
+      btn.disabled=true; btn.textContent='Saving…';
+      const result = await Auth.changePassword(current, newPw);
+      if (result.ok) { showPwAlert('Password changed.','success'); setTimeout(closePasswordModal,1500); }
+      else { showPwAlert(result.error,'error'); }
+      btn.disabled=false; btn.textContent='Save';
+    }
+
+    function escHtml(str) {
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ExamSystem — Grade Register</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui,-apple-system,sans-serif; background:#f0f2f5; color:#1a1a2e; }
+
+    /* Hide number input spinners */
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+    input[type=number] { -moz-appearance:textfield; }
+
+    /* Nav */
+    nav {
+      background:#1a1a2e; color:#fff; padding:.85rem 1.5rem;
+      display:flex; align-items:center; justify-content:space-between; gap:1rem;
+    }
+    nav .brand { font-weight:700; font-size:1.05rem; }
+    nav .right  { display:flex; align-items:center; gap:1rem; }
+    nav span    { color:#a5b4fc; font-size:.85rem; }
+    nav button  {
+      background:none; border:1px solid #4f46e5; color:#a5b4fc;
+      padding:.35rem .85rem; border-radius:6px; cursor:pointer; font-size:.82rem; transition:background .2s;
+    }
+    nav button:hover { background:#4f46e5; color:#fff; }
+
+    .container { max-width:1100px; margin:2rem auto; padding:0 1rem; }
+
+    .alert {
+      padding:.75rem 1rem; border-radius:8px; font-size:.88rem;
+      margin-bottom:1rem; display:none;
+    }
+    .alert.error   { background:#fef2f2; color:#b91c1c; border:1px solid #fca5a5; display:block; }
+    .alert.success { background:#f0fdf4; color:#166534; border:1px solid #86efac; display:block; }
+
+    /* ── Add Student Form ─────────────────────────────────── */
+    .add-card {
+      background:#fff; border-radius:12px;
+      box-shadow:0 2px 10px rgba(0,0,0,.07);
+      padding:1.5rem; margin-bottom:1.75rem;
+    }
+    .add-card h3 {
+      font-size:.95rem; font-weight:700; color:#4f46e5;
+      margin-bottom:1.25rem; display:flex; align-items:center; gap:.5rem;
+    }
+    .form-name {
+      display:flex; flex-direction:column; gap:4px; margin-bottom:1.1rem;
+    }
+    .form-name label { font-size:.8rem; font-weight:600; color:#374151; }
+    .form-name input {
+      padding:.6rem .85rem; border:1.5px solid #d1d5db; border-radius:8px;
+      font-size:.95rem; outline:none; transition:border-color .2s; max-width:360px;
+    }
+    .form-name input:focus { border-color:#4f46e5; }
+
+    .subjects-grid {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:.85rem; margin-bottom:1.25rem;
+    }
+    .subject-field { display:flex; flex-direction:column; gap:4px; }
+    .subject-field label { font-size:.8rem; font-weight:600; color:#374151; }
+    .subject-field input {
+      padding:.6rem .85rem; border:1.5px solid #d1d5db; border-radius:8px;
+      font-size:.95rem; outline:none; transition:border-color .2s; text-align:center;
+    }
+    .subject-field input:focus { border-color:#4f46e5; }
+    .subject-field input.invalid { border-color:#ef4444; background:#fef2f2; }
+
+    .btn-add {
+      padding:.65rem 1.75rem; background:#4f46e5; color:#fff; border:none;
+      border-radius:8px; font-size:.95rem; font-weight:600; cursor:pointer;
+      transition:background .2s;
+    }
+    .btn-add:hover    { background:#4338ca; }
+    .btn-add:disabled { background:#a5b4fc; cursor:not-allowed; }
+
+    /* ── Grade Register Table ─────────────────────────────── */
+    .register-header {
+      display:flex; align-items:center; justify-content:space-between;
+      margin-bottom:.85rem;
+    }
+    .register-header h2 { font-size:1.1rem; font-weight:700; }
+
+    .table-wrap {
+      background:#fff; border-radius:12px;
+      box-shadow:0 2px 10px rgba(0,0,0,.07);
+      overflow-x:auto;
+    }
+    table { width:100%; border-collapse:collapse; min-width:900px; }
+
+    thead th {
+      background:#f8fafc; padding:.7rem 1rem; text-align:center;
+      font-size:.75rem; font-weight:700; color:#6b7280;
+      text-transform:uppercase; letter-spacing:.05em;
+      border-bottom:2px solid #e5e7eb;
+    }
+    thead th:first-child { text-align:left; min-width:130px; }
+    thead th:last-child  { min-width:110px; }
+
+    tbody tr { transition:background .15s; }
+    tbody tr:hover td { background:#f9fafb; }
+    tbody td {
+      padding:.65rem .75rem; border-bottom:1px solid #f3f4f6;
+      text-align:center; vertical-align:middle;
+    }
+    tbody tr:last-child td { border-bottom:none; }
+    tbody td:first-child   { text-align:left; }
+
+    .student-name-cell {
+      font-weight:600; font-size:.9rem; color:#1a1a2e; padding-left:1rem;
+    }
+
+    /* Score + grade cell */
+    .score-cell { display:flex; flex-direction:column; align-items:center; gap:3px; }
+    .score-input {
+      width:68px; padding:.35rem .4rem; border:1.5px solid #e5e7eb;
+      border-radius:6px; font-size:.88rem; text-align:center; outline:none;
+      transition:border-color .2s; background:#fafafa;
+    }
+    .score-input:focus { border-color:#4f46e5; background:#fff; }
+    .score-input.changed { border-color:#f59e0b; background:#fffbeb; }
+
+    .grade-badge {
+      font-size:.72rem; font-weight:700; padding:1px 7px;
+      border-radius:999px; letter-spacing:.03em;
+    }
+    .grade-A { background:#d1fae5; color:#065f46; }
+    .grade-B { background:#dbeafe; color:#1e40af; }
+    .grade-C { background:#fef3c7; color:#92400e; }
+    .grade-D { background:#fed7aa; color:#9a3412; }
+    .grade-F { background:#fee2e2; color:#991b1b; }
+
+    /* Average cell */
+    .avg-cell { display:flex; flex-direction:column; align-items:center; gap:3px; }
+    .avg-score { font-size:.92rem; font-weight:700; color:#1a1a2e; }
+    .avg-badge { font-size:.75rem; font-weight:700; padding:2px 9px; border-radius:999px; }
+
+    /* Row save button */
+    .btn-row-save {
+      padding:.38rem .85rem; background:#4f46e5; color:#fff; border:none;
+      border-radius:6px; font-size:.8rem; font-weight:600; cursor:pointer;
+      transition:background .2s; opacity:.4; pointer-events:none;
+    }
+    .btn-row-save.active   { opacity:1; pointer-events:auto; }
+    .btn-row-save:hover    { background:#4338ca; }
+    .btn-row-save.saved    { background:#10b981; opacity:1; pointer-events:none; }
+
+    .empty   { text-align:center; padding:3rem; color:#9ca3af; font-size:.92rem; }
+    .loading { text-align:center; padding:3rem; color:#6b7280; }
+
+    /* Password modal */
+    .modal-overlay {
+      position:fixed; inset:0; background:rgba(0,0,0,.45);
+      display:none; align-items:center; justify-content:center; z-index:100;
+    }
+    .modal-overlay.open { display:flex; }
+    .modal {
+      background:#fff; border-radius:12px; padding:1.75rem;
+      width:100%; max-width:360px;
+    }
+    .modal h3 { font-size:1rem; font-weight:700; margin-bottom:1.25rem; }
+    .modal label { display:block; font-size:.8rem; font-weight:600; color:#374151; margin-bottom:4px; }
+    .modal input {
+      width:100%; padding:.55rem .75rem; border:1.5px solid #d1d5db;
+      border-radius:7px; font-size:.9rem; outline:none; margin-bottom:.85rem; transition:border-color .2s;
+    }
+    .modal input:focus { border-color:#4f46e5; }
+    .modal-btns { display:flex; gap:.75rem; justify-content:flex-end; }
+    .btn-cancel  { padding:.5rem 1rem; background:#f3f4f6; color:#374151; border:none; border-radius:7px; font-size:.88rem; cursor:pointer; }
+    .btn-primary { padding:.5rem 1.1rem; background:#4f46e5; color:#fff; border:none; border-radius:7px; font-size:.88rem; font-weight:600; cursor:pointer; }
+    .btn-primary:disabled { background:#a5b4fc; cursor:not-allowed; }
+
+    /* Export buttons */
+    .export-btns { display:flex; gap:.6rem; flex-wrap:wrap; }
+    .btn-export {
+      display:inline-flex; align-items:center; gap:.4rem;
+      padding:.42rem 1rem; border:1.5px solid #d1d5db; border-radius:7px;
+      background:#fff; color:#374151; font-size:.82rem; font-weight:600;
+      cursor:pointer; transition:all .2s;
+    }
+    .btn-export:hover { border-color:#4f46e5; color:#4f46e5; background:#f5f3ff; }
+    .btn-export svg { width:14px; height:14px; }
+
+    @media(max-width:700px) {
+      .subjects-grid { grid-template-columns:repeat(2,1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <span class="brand">ExamSystem</span>
+  <div class="right">
+    <span id="nav-user"></span>
+    <button onclick="openPasswordModal()">Change password</button>
+    <button onclick="Auth.logout()">Sign out</button>
+  </div>
+</nav>
+
+<div class="container">
+  <div id="alertEl" class="alert" role="alert"></div>
+
+  <!-- ── Add Student Form ──────────────────────────────────── -->
+  <div class="add-card">
+    <h3>➕ Add New Student</h3>
+
+    <div class="form-name">
+      <label>Student Name</label>
+      <input type="text" id="new-name" placeholder="e.g. Jane Wanjiku">
+    </div>
+
+    <div class="subjects-grid">
+      <div class="subject-field">
+        <label>Mathematics</label>
+        <input type="number" id="s-Mathematics" placeholder="0 – 100" min="0" max="100">
+      </div>
+      <div class="subject-field">
+        <label>English</label>
+        <input type="number" id="s-English" placeholder="0 – 100" min="0" max="100">
+      </div>
+      <div class="subject-field">
+        <label>Kiswahili</label>
+        <input type="number" id="s-Kiswahili" placeholder="0 – 100" min="0" max="100">
+      </div>
+      <div class="subject-field">
+        <label>Biology</label>
+        <input type="number" id="s-Biology" placeholder="0 – 100" min="0" max="100">
+      </div>
+      <div class="subject-field">
+        <label>Chemistry</label>
+        <input type="number" id="s-Chemistry" placeholder="0 – 100" min="0" max="100">
+      </div>
+      <div class="subject-field">
+        <label>Physics</label>
+        <input type="number" id="s-Physics" placeholder="0 – 100" min="0" max="100">
+      </div>
+    </div>
+
+    <button class="btn-add" id="btn-add" onclick="addStudent()">Add Student</button>
+  </div>
+
+  <!-- ── Grade Register ────────────────────────────────────── -->
+  <div class="register-header">
+    <h2>Grade Register</h2>
+    <div class="export-btns">
+      <button class="btn-export" onclick="exportCSV()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Export CSV
+      </button>
+      <button class="btn-export" onclick="exportExcel()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+        Export Excel
+      </button>
+      <button class="btn-export" onclick="exportPrint()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Print / PDF
+      </button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <div id="grades-container" class="loading">Loading grades…</div>
+  </div>
+</div>
+
+<!-- Password modal -->
+<div class="modal-overlay" id="pwModal">
+  <div class="modal">
+    <h3>Change Password</h3>
+    <div id="pw-alert" class="alert" style="margin-bottom:.75rem"></div>
+    <label>Current Password</label>
+    <input type="password" id="pw-current">
+    <label>New Password</label>
+    <input type="password" id="pw-new" placeholder="At least 10 characters">
+    <label>Confirm New Password</label>
+    <input type="password" id="pw-confirm">
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closePasswordModal()">Cancel</button>
+      <button class="btn-primary" id="pw-save-btn" onclick="savePassword()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="shared.js"></script>
+<script>
+const SUBJECTS = ['Mathematics','English','Kiswahili','Biology','Chemistry','Physics'];
+
+function letterGrade(score) {
+  if (score >= 80) return 'A';
+  if (score >= 70) return 'B';
+  if (score >= 60) return 'C';
+  if (score >= 50) return 'D';
+  return 'F';
+}
+
+function gradeClass(letter) { return 'grade-' + letter; }
+
+function showAlert(msg, type) {
+  const el = document.getElementById('alertEl');
+  el.textContent = msg;
+  el.className   = 'alert ' + type;
+  setTimeout(() => el.className = 'alert', 5000);
+}
+
+// ── Boot ────────────────────────────────────────────────────
+(async () => {
+  const profile = await Auth.requireRole(['teacher','admin']);
+  if (!profile) return;
+  document.getElementById('nav-user').textContent = profile.username;
+  await loadGrades();
+})();
+
+// ── Load & render grade register ─────────────────────────────
+async function loadGrades() {
+  const container = document.getElementById('grades-container');
+  container.innerHTML = '<div class="loading">Loading grades…</div>';
+
+  const { data: rows, error } = await sb
+    .from('students_grades')
+    .select('*')
+    .order('student_name', { ascending: true })
+    .order('subject',       { ascending: true });
+
+  if (error) {
+    container.innerHTML = '<div class="empty">Failed to load grades. Please refresh.</div>';
+    return;
+  }
+  if (!rows || !rows.length) {
+    container.innerHTML = '<div class="empty">No students yet. Add the first one above.</div>';
+    return;
+  }
+
+  // Group by student
+  const students = {};
+  rows.forEach(r => {
+    if (!students[r.student_name]) students[r.student_name] = {};
+    students[r.student_name][r.subject] = r;
+  });
+
+  // Build table
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th style="text-align:left">Student</th>
+          ${SUBJECTS.map(s => `<th>${s}</th>`).join('')}
+          <th>Average</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+  Object.entries(students).forEach(([name, subMap]) => {
+    const grades  = SUBJECTS.map(s => subMap[s] ? parseFloat(subMap[s].grade) : null);
+    const valid   = grades.filter(g => g !== null);
+    const avg     = valid.length ? (valid.reduce((a,b)=>a+b,0)/valid.length) : null;
+    const avgStr  = avg !== null ? avg.toFixed(1) : '—';
+    const avgLetter = avg !== null ? letterGrade(avg) : '—';
+    const rowKey  = name.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
+
+    html += `<tr data-student="${escHtml(name)}">
+      <td class="student-name-cell">${escHtml(name)}</td>`;
+
+    SUBJECTS.forEach((subject, i) => {
+      const row    = subMap[subject];
+      const grade  = row ? parseFloat(row.grade) : null;
+      const letter = grade !== null ? letterGrade(grade) : '—';
+      const dbId   = row ? row.id : null;
+
+      if (row) {
+        html += `
+          <td>
+            <div class="score-cell">
+              <input
+                class="score-input"
+                type="number" min="0" max="100" step="0.5"
+                value="${grade}"
+                data-id="${dbId}"
+                data-old="${grade}"
+                data-student="${escHtml(name)}"
+                data-rowkey="${rowKey}"
+                oninput="onScoreInput(this)"
+              >
+              <span class="grade-badge ${gradeClass(letter)}" id="badge-${dbId}">${letter}</span>
+            </div>
+          </td>`;
+      } else {
+        html += `<td><div class="score-cell"><span style="color:#d1d5db">—</span></div></td>`;
+      }
+    });
+
+    // Average column
+    html += `
+      <td>
+        <div class="avg-cell">
+          <span class="avg-score" id="avg-score-${rowKey}">${avgStr}</span>
+          <span class="avg-badge ${avg !== null ? gradeClass(avgLetter) : ''}" id="avg-badge-${rowKey}">${avgLetter}</span>
+        </div>
+      </td>`;
+
+    // Save button (per row)
+    html += `
+      <td>
+        <button
+          class="btn-row-save"
+          id="save-btn-${rowKey}"
+          onclick="saveRow('${escHtml(name)}','${rowKey}')"
+        >Save</button>
+      </td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+// ── Input handler: update letter grade live as user types ────
+function onScoreInput(input) {
+  const val    = parseFloat(input.value);
+  const dbId   = input.dataset.id;
+  const rowKey = input.dataset.rowkey;
+  const badge  = document.getElementById('badge-' + dbId);
+
+  // Update letter grade badge live
+  if (!isNaN(val) && val >= 0 && val <= 100) {
+    const letter = letterGrade(val);
+    badge.textContent = letter;
+    badge.className   = 'grade-badge ' + gradeClass(letter);
+    input.classList.add('changed');
+  } else {
+    badge.textContent = '?';
+    badge.className   = 'grade-badge grade-F';
+  }
+
+  // Recalculate row average live
+  recalcAverage(rowKey);
+
+  // Activate the row Save button
+  const saveBtn = document.getElementById('save-btn-' + rowKey);
+  if (saveBtn) { saveBtn.classList.add('active'); saveBtn.classList.remove('saved'); }
+}
+
+// ── Recalculate row average dynamically ─────────────────────
+function recalcAverage(rowKey) {
+  const inputs  = document.querySelectorAll(`input.score-input[data-rowkey="${rowKey}"]`);
+  const values  = Array.from(inputs)
+    .map(i => parseFloat(i.value))
+    .filter(v => !isNaN(v) && v >= 0 && v <= 100);
+
+  const avgScoreEl  = document.getElementById('avg-score-' + rowKey);
+  const avgBadgeEl  = document.getElementById('avg-badge-' + rowKey);
+  if (!avgScoreEl || !avgBadgeEl) return;
+
+  if (values.length) {
+    const avg    = values.reduce((a,b)=>a+b,0) / values.length;
+    const letter = letterGrade(avg);
+    avgScoreEl.textContent = avg.toFixed(1);
+    avgBadgeEl.textContent = letter;
+    avgBadgeEl.className   = 'avg-badge ' + gradeClass(letter);
+  } else {
+    avgScoreEl.textContent = '—';
+    avgBadgeEl.textContent = '—';
+    avgBadgeEl.className   = 'avg-badge';
+  }
+}
+
+// ── Save entire student row ──────────────────────────────────
+async function saveRow(studentName, rowKey) {
+  const inputs  = document.querySelectorAll(`input.score-input[data-rowkey="${rowKey}"]`);
+  const btn     = document.getElementById('save-btn-' + rowKey);
+  const updates = [];
+
+  // Validate all inputs first
+  let valid = true;
+  inputs.forEach(input => {
+    const val = parseFloat(input.value);
+    if (isNaN(val) || val < 0 || val > 100) {
+      input.classList.add('changed');
+      valid = false;
+    }
+    updates.push({ id: input.dataset.id, grade: val, old: parseFloat(input.dataset.old) });
+  });
+
+  if (!valid) {
+    showAlert('All scores must be between 0 and 100.', 'error');
+    return;
+  }
+
+  btn.textContent = 'Saving…';
+  btn.classList.remove('active');
+
+  // Save each subject grade
+  let allOk = true;
+  for (const u of updates) {
+    const { error } = await sb
+      .from('students_grades')
+      .update({ grade: u.grade })
+      .eq('id', u.id);
+
+    if (error) { allOk = false; break; }
+
+    // Audit log entry
+    await logAudit('GRADE_UPDATE', parseInt(u.id), u.old, u.grade);
+  }
+
+  if (allOk) {
+    // Update data-old values so next save tracks correctly
+    inputs.forEach(input => {
+      input.dataset.old = input.value;
+      input.classList.remove('changed');
+    });
+    btn.textContent = '✓ Saved';
+    btn.classList.add('saved');
+    setTimeout(() => { btn.textContent = 'Save'; btn.classList.remove('saved'); }, 2000);
+    showAlert(`${studentName}'s grades saved successfully.`, 'success');
+  } else {
+    btn.textContent = 'Save';
+    btn.classList.add('active');
+    showAlert('Failed to save some grades. Please try again.', 'error');
+  }
+}
+
+// ── Add new student ──────────────────────────────────────────
+async function addStudent() {
+  const name = document.getElementById('new-name').value.trim();
+  if (!name) { showAlert('Student name is required.', 'error'); return; }
+
+  const entries = [];
+  let valid = true;
+
+  for (const subject of SUBJECTS) {
+    const input = document.getElementById('s-' + subject);
+    const val   = input.value.trim();
+    const g     = parseFloat(val);
+
+    if (val === '' || isNaN(g) || g < 0 || g > 100) {
+      input.classList.add('invalid');
+      valid = false;
+    } else {
+      input.classList.remove('invalid');
+      entries.push({ student_name: name, subject, grade: g });
+    }
+  }
+
+  if (!valid) { showAlert('All 6 subject scores are required and must be 0–100.', 'error'); return; }
+
+  // Check duplicate
+  const { data: existing } = await sb
+    .from('students_grades')
+    .select('id')
+    .eq('student_name', name)
+    .limit(1);
+
+  if (existing && existing.length > 0) {
+    showAlert(`A student named "${name}" already exists.`, 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btn-add');
+  btn.disabled    = true;
+  btn.textContent = 'Adding…';
+
+  const { error } = await sb.from('students_grades').insert(entries);
+
+  if (error) {
+    showAlert('Failed to add student: ' + error.message, 'error');
+  } else {
+    await logAudit('STUDENT_ADDED');
+    document.getElementById('new-name').value = '';
+    SUBJECTS.forEach(s => { document.getElementById('s-'+s).value = ''; });
+    showAlert(`${name} added successfully.`, 'success');
+    await loadGrades();
+  }
+
+  btn.disabled    = false;
+  btn.textContent = 'Add Student';
+}
+
+// ── Password modal ────────────────────────────────────────────
+function openPasswordModal()  { document.getElementById('pwModal').classList.add('open'); }
+function closePasswordModal() {
+  document.getElementById('pwModal').classList.remove('open');
+  ['pw-current','pw-new','pw-confirm'].forEach(id => document.getElementById(id).value = '');
+  const a = document.getElementById('pw-alert'); a.textContent=''; a.className='alert';
+}
+
+async function savePassword() {
+  const current = document.getElementById('pw-current').value;
+  const newPw   = document.getElementById('pw-new').value;
+  const confirm = document.getElementById('pw-confirm').value;
+  const alertEl = document.getElementById('pw-alert');
+  const btn     = document.getElementById('pw-save-btn');
+  const show    = (m,t) => { alertEl.textContent=m; alertEl.className='alert '+t; };
+
+  if (!current||!newPw||!confirm) { show('All fields are required.','error'); return; }
+  if (newPw.length < 10)          { show('New password must be at least 10 characters.','error'); return; }
+  if (newPw !== confirm)          { show('Passwords do not match.','error'); return; }
+
+  btn.disabled=true; btn.textContent='Saving…';
+  const result = await Auth.changePassword(current, newPw);
+  if (result.ok) { show('Password changed.','success'); setTimeout(closePasswordModal,1500); }
+  else           { show(result.error,'error'); }
+  btn.disabled=false; btn.textContent='Save';
+}
+
+
+// ── Export helpers ────────────────────────────────────────────
+
+// Collect current table data from the DOM into a structured array
+function collectTableData() {
+  const rows = document.querySelectorAll('tbody tr');
+  const data = [];
+  rows.forEach(row => {
+    const name    = row.querySelector('.student-name-cell')?.textContent.trim();
+    const inputs  = row.querySelectorAll('input.score-input');
+    const badges  = row.querySelectorAll('.grade-badge');
+    const avgScore = row.querySelector('.avg-score')?.textContent.trim();
+    const avgGrade = row.querySelector('.avg-badge')?.textContent.trim();
+    if (!name) return;
+
+    const entry = { name };
+    inputs.forEach((input, i) => {
+      const subject = SUBJECTS[i];
+      entry[subject + ' Score']  = input.value;
+      entry[subject + ' Grade']  = badges[i]?.textContent.trim() || '';
+    });
+    entry['Average Score'] = avgScore;
+    entry['Average Grade'] = avgGrade;
+    data.push(entry);
+  });
+  return data;
+}
+
+// ── 1. Export CSV ─────────────────────────────────────────────
+function exportCSV() {
+  const data = collectTableData();
+  if (!data.length) { showAlert('No data to export.', 'error'); return; }
+
+  const headers = ['Student Name'];
+  SUBJECTS.forEach(s => { headers.push(s + ' Score'); headers.push(s + ' Grade'); });
+  headers.push('Average Score', 'Average Grade');
+
+  const lines = [headers.join(',')];
+  data.forEach(row => {
+    const cols = ['"' + row.name.replace(/"/g, '""') + '"'];
+    SUBJECTS.forEach(s => {
+      cols.push(row[s + ' Score'] || '');
+      cols.push(row[s + ' Grade'] || '');
+    });
+    cols.push(row['Average Score'] || '');
+    cols.push(row['Average Grade'] || '');
+    lines.push(cols.join(','));
+  });
+
+  const csv      = lines.join('\n');
+  const blob     = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url      = URL.createObjectURL(blob);
+  const a        = document.createElement('a');
+  a.href         = url;
+  a.download     = 'grade-register-' + today() + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  showAlert('CSV downloaded.', 'success');
+}
+
+// ── 2. Export Excel (.xls via HTML table trick) ───────────────
+// Opens directly in Excel/LibreOffice with full formatting.
+function exportExcel() {
+  const data = collectTableData();
+  if (!data.length) { showAlert('No data to export.', 'error'); return; }
+
+  let html = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office"
+          xmlns:x="urn:schemas-microsoft-com:office:excel"
+          xmlns="http://www.w3.org/TR/REC-html40">
+    <head><meta charset="UTF-8">
+    <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>
+    <x:ExcelWorksheet><x:Name>Grade Register</x:Name>
+    <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+    </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+    <style>
+      body { font-family: Calibri, sans-serif; font-size: 11pt; }
+      table { border-collapse: collapse; width: 100%; }
+      th {
+        background: #1a1a2e; color: #fff; padding: 8px 10px;
+        text-align: center; font-size: 10pt; font-weight: bold; border: 1px solid #ccc;
+      }
+      th.name-col { text-align: left; }
+      td { padding: 6px 10px; border: 1px solid #e0e0e0; text-align: center; font-size: 10pt; }
+      td.name-col { text-align: left; font-weight: 600; }
+      .grade-A { background: #d1fae5; color: #065f46; font-weight: bold; }
+      .grade-B { background: #dbeafe; color: #1e40af; font-weight: bold; }
+      .grade-C { background: #fef3c7; color: #92400e; font-weight: bold; }
+      .grade-D { background: #fed7aa; color: #9a3412; font-weight: bold; }
+      .grade-F { background: #fee2e2; color: #991b1b; font-weight: bold; }
+      .avg-col { background: #f8fafc; font-weight: bold; }
+      tr:nth-child(even) td { background: #f9fafb; }
+      tr:nth-child(even) td.avg-col { background: #f1f5f9; }
+      h2 { font-size: 14pt; color: #1a1a2e; margin-bottom: 12px; }
+      .meta { font-size: 9pt; color: #6b7280; margin-bottom: 16px; }
+    </style>
+    </head><body>
+    <h2>ExamSystem — Grade Register</h2>
+    <p class="meta">Exported: ${new Date().toLocaleString()}</p>
+    <table>
+      <thead><tr>
+        <th class="name-col">Student Name</th>`;
+
+  SUBJECTS.forEach(s => {
+    html += `<th>${s}<br>Score</th><th>${s}<br>Grade</th>`;
+  });
+  html += `<th class="avg-col">Average<br>Score</th><th class="avg-col">Average<br>Grade</th></tr></thead><tbody>`;
+
+  data.forEach(row => {
+    html += `<tr><td class="name-col">${row.name}</td>`;
+    SUBJECTS.forEach(s => {
+      const grade = row[s + ' Grade'] || '';
+      html += `<td>${row[s + ' Score'] || ''}</td>`;
+      html += `<td class="grade-${grade}">${grade}</td>`;
+    });
+    const avgGrade = row['Average Grade'] || '';
+    html += `<td class="avg-col">${row['Average Score'] || ''}</td>`;
+    html += `<td class="avg-col grade-${avgGrade}">${avgGrade}</td>`;
+    html += `</tr>`;
+  });
+
+  html += `</tbody></table></body></html>`;
+
+  const blob     = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  const url      = URL.createObjectURL(blob);
+  const a        = document.createElement('a');
+  a.href         = url;
+  a.download     = 'grade-register-' + today() + '.xls';
+  a.click();
+  URL.revokeObjectURL(url);
+  showAlert('Excel file downloaded.', 'success');
+}
+
+// ── 3. Print / Save as PDF ────────────────────────────────────
+function exportPrint() {
+  const data = collectTableData();
+  if (!data.length) { showAlert('No data to export.', 'error'); return; }
+
+  let rows = '';
+  data.forEach((row, idx) => {
+    rows += `<tr>
+      <td class="name-col">${row.name}</td>`;
+    SUBJECTS.forEach(s => {
+      const grade = row[s + ' Grade'] || '';
+      rows += `<td>${row[s + ' Score'] || ''}</td>`;
+      rows += `<td class="grade-${grade}">${grade}</td>`;
+    });
+    const avgGrade = row['Average Grade'] || '';
+    rows += `<td class="avg-col">${row['Average Score'] || ''}</td>`;
+    rows += `<td class="avg-col grade-${avgGrade}">${avgGrade}</td>`;
+    rows += `</tr>`;
+  });
+
+  const subjectHeaders = SUBJECTS.map(s =>
+    `<th>${s}<br><small>Score</small></th><th>${s}<br><small>Grade</small></th>`
+  ).join('');
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html>
+  <html><head><meta charset="UTF-8">
+  <title>Grade Register — ${new Date().toLocaleDateString()}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Calibri, Arial, sans-serif; font-size: 10pt; padding: 20px; color: #111; }
+    h2 { font-size: 15pt; color: #1a1a2e; margin-bottom: 4px; }
+    .meta { font-size: 9pt; color: #6b7280; margin-bottom: 18px; }
+    table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+    th {
+      background: #1a1a2e; color: #fff; padding: 7px 6px;
+      text-align: center; border: 1px solid #999; font-size: 8.5pt; line-height: 1.3;
+    }
+    th.name-col { text-align: left; min-width: 120px; }
+    td { padding: 5px 6px; border: 1px solid #ddd; text-align: center; }
+    td.name-col { text-align: left; font-weight: 600; }
+    td.avg-col  { font-weight: 700; background: #f8fafc; }
+    tr:nth-child(even) td { background: #f9fafb; }
+    tr:nth-child(even) td.avg-col { background: #f1f5f9; }
+    .grade-A { background: #d1fae5 !important; color: #065f46; font-weight: 700; }
+    .grade-B { background: #dbeafe !important; color: #1e40af; font-weight: 700; }
+    .grade-C { background: #fef3c7 !important; color: #92400e; font-weight: 700; }
+    .grade-D { background: #fed7aa !important; color: #9a3412; font-weight: 700; }
+    .grade-F { background: #fee2e2 !important; color: #991b1b; font-weight: 700; }
+    .footer { margin-top: 16px; font-size: 8pt; color: #9ca3af; text-align: right; }
+    @media print {
+      body { padding: 10px; }
+      @page { margin: 1cm; size: landscape; }
+    }
+  </style>
+  </head><body>
+  <h2>ExamSystem — Grade Register</h2>
+  <p class="meta">Printed: ${new Date().toLocaleString()} &nbsp;|&nbsp; ${data.length} student(s)</p>
+  <table>
+    <thead><tr>
+      <th class="name-col">Student Name</th>
+      ${subjectHeaders}
+      <th class="avg-col">Avg Score</th>
+      <th class="avg-col">Avg Grade</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="footer">ExamSystem &mdash; Confidential</div>
+  <script>window.onload = () => { window.print(); }<\/script>
+  </body></html>`);
+  win.document.close();
+}
+
+// ── Date helper ───────────────────────────────────────────────
+function today() {
+  return new Date().toISOString().slice(0,10);
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

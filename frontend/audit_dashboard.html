@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ExamSystem — Audit Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui,-apple-system,sans-serif; background:#f0f2f5; color:#1a1a2e; }
+    nav {
+      background:#1a1a2e; color:#fff; padding:.85rem 1.5rem;
+      display:flex; align-items:center; justify-content:space-between; gap:1rem;
+    }
+    nav .brand { font-weight:700; font-size:1.05rem; }
+    nav .right  { display:flex; align-items:center; gap:1rem; }
+    nav span    { color:#a5b4fc; font-size:.85rem; }
+    nav a { color:#a5b4fc; text-decoration:none; font-size:.85rem; cursor:pointer; }
+    nav a:hover { color:#fff; }
+    nav button {
+      background:none; border:1px solid #4f46e5; color:#a5b4fc;
+      padding:.35rem .85rem; border-radius:6px; cursor:pointer; font-size:.82rem; transition:background .2s;
+    }
+    nav button:hover { background:#4f46e5; color:#fff; }
+    .container { max-width:1060px; margin:2rem auto; padding:0 1rem; }
+
+    /* Stats row */
+    .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:1.5rem; }
+    .stat-card {
+      background:#fff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.07);
+      padding:1.25rem; text-align:center;
+    }
+    .stat-value { font-size:1.8rem; font-weight:700; color:#4f46e5; }
+    .stat-label { font-size:.78rem; color:#6b7280; margin-top:4px; text-transform:uppercase; letter-spacing:.04em; }
+
+    /* Filter bar */
+    .filter-bar {
+      background:#fff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.07);
+      padding:1rem 1.25rem; margin-bottom:1.25rem;
+      display:flex; gap:.75rem; align-items:center; flex-wrap:wrap;
+    }
+    .filter-bar label { font-size:.8rem; font-weight:600; color:#374151; white-space:nowrap; }
+    .filter-bar select, .filter-bar input {
+      padding:.45rem .75rem; border:1.5px solid #d1d5db; border-radius:7px;
+      font-size:.88rem; outline:none; transition:border-color .2s;
+    }
+    .filter-bar select:focus, .filter-bar input:focus { border-color:#4f46e5; }
+    .btn-filter {
+      padding:.45rem 1rem; background:#4f46e5; color:#fff; border:none;
+      border-radius:7px; font-size:.85rem; font-weight:600; cursor:pointer; transition:background .2s;
+    }
+    .btn-filter:hover { background:#4338ca; }
+
+    /* Log table */
+    .table-card {
+      background:#fff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.07); overflow:hidden;
+    }
+    table { width:100%; border-collapse:collapse; }
+    th {
+      background:#f8fafc; text-align:left; padding:.65rem 1rem;
+      font-size:.75rem; font-weight:600; color:#6b7280;
+      text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e5e7eb;
+    }
+    td { padding:.6rem 1rem; border-bottom:1px solid #f3f4f6; font-size:.83rem; }
+    tr:last-child td { border-bottom:none; }
+    tr:hover td { background:#f9fafb; }
+
+    .badge {
+      display:inline-block; padding:2px 8px; border-radius:999px;
+      font-size:.72rem; font-weight:600; white-space:nowrap;
+    }
+    .badge-LOGIN        { background:#dbeafe; color:#1e40af; }
+    .badge-FAILED_LOGIN { background:#fee2e2; color:#991b1b; }
+    .badge-GRADE_UPDATE { background:#d1fae5; color:#065f46; }
+    .badge-STUDENT_ADDED{ background:#ede9fe; color:#5b21b6; }
+    .badge-USER_CREATED { background:#fef3c7; color:#92400e; }
+    .badge-PASSWORD_CHANGED { background:#f0fdf4; color:#166534; }
+
+    .empty   { text-align:center; padding:2.5rem; color:#9ca3af; font-size:.9rem; }
+    .loading { text-align:center; padding:2.5rem; color:#6b7280; }
+
+    .mono { font-family:monospace; font-size:.8rem; color:#6b7280; }
+
+    @media(max-width:640px) {
+      .stats { grid-template-columns:1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <span class="brand">ExamSystem</span>
+    <div class="right">
+      <span id="nav-user"></span>
+      <a onclick="window.location.href='admin_users.html'">Manage Users</a>
+      <button onclick="Auth.logout()">Sign out</button>
+    </div>
+  </nav>
+
+  <div class="container">
+
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-value" id="stat-total">—</div>
+        <div class="stat-label">Total Events</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-grades">—</div>
+        <div class="stat-label">Grade Changes</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-ips">—</div>
+        <div class="stat-label">Unique IPs</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-failed">—</div>
+        <div class="stat-label">Failed Logins (24h)</div>
+      </div>
+    </div>
+
+    <!-- Filter -->
+    <div class="filter-bar">
+      <label>Action</label>
+      <select id="filter-action">
+        <option value="">All actions</option>
+        <option value="LOGIN">LOGIN</option>
+        <option value="FAILED_LOGIN">FAILED_LOGIN</option>
+        <option value="GRADE_UPDATE">GRADE_UPDATE</option>
+        <option value="STUDENT_ADDED">STUDENT_ADDED</option>
+        <option value="USER_CREATED">USER_CREATED</option>
+        <option value="PASSWORD_CHANGED">PASSWORD_CHANGED</option>
+      </select>
+      <label>Search IP / Student ID</label>
+      <input type="text" id="filter-search" placeholder="e.g. 192.168 or 3">
+      <button class="btn-filter" onclick="loadLog()">Filter</button>
+      <button class="btn-filter" style="background:#6b7280" onclick="clearFilter()">Clear</button>
+    </div>
+
+    <!-- Log table -->
+    <div class="table-card">
+      <div id="log-container" class="loading">Loading audit log…</div>
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="shared.js"></script>
+  <script>
+    (async () => {
+      const profile = await Auth.requireRole(['admin']);
+      if (!profile) return;
+      document.getElementById('nav-user').textContent = profile.username;
+      await loadStats();
+      await loadLog();
+    })();
+
+    async function loadStats() {
+      // Total events
+      const { count: total } = await sb.from('forensic_audit_log').select('*', { count:'exact', head:true });
+      // Grade changes
+      const { count: grades } = await sb.from('forensic_audit_log')
+        .select('*', { count:'exact', head:true }).eq('action_taken','GRADE_UPDATE');
+      // Unique IPs
+      const { data: ipRows } = await sb.from('forensic_audit_log')
+        .select('ip_address').not('ip_address','is',null);
+      const uniqueIps = new Set((ipRows||[]).map(r => r.ip_address)).size;
+      // Failed logins last 24h
+      const since = new Date(Date.now() - 86400000).toISOString();
+      const { count: failed } = await sb.from('forensic_audit_log')
+        .select('*', { count:'exact', head:true })
+        .eq('action_taken','FAILED_LOGIN')
+        .gte('timestamp', since);
+
+      document.getElementById('stat-total').textContent  = total  ?? 0;
+      document.getElementById('stat-grades').textContent = grades ?? 0;
+      document.getElementById('stat-ips').textContent    = uniqueIps;
+      document.getElementById('stat-failed').textContent = failed ?? 0;
+    }
+
+    async function loadLog() {
+      const container = document.getElementById('log-container');
+      container.innerHTML = '<div class="loading">Loading…</div>';
+
+      const action = document.getElementById('filter-action').value;
+      const search = document.getElementById('filter-search').value.trim();
+
+      let query = sb
+        .from('forensic_audit_log')
+        .select('log_id, timestamp, user_id, action_taken, target_student_id, old_grade, new_grade, ip_address')
+        .order('log_id', { ascending: false })
+        .limit(500);
+
+      if (action) query = query.eq('action_taken', action);
+      if (search) {
+        const isNum = /^\d+$/.test(search);
+        if (isNum) query = query.or(`target_student_id.eq.${search},ip_address.ilike.%${search}%`);
+        else        query = query.ilike('ip_address', `%${search}%`);
+      }
+
+      const { data: rows, error } = await query;
+
+      if (error) { container.innerHTML = '<div class="empty">Failed to load audit log.</div>'; return; }
+      if (!rows || !rows.length) { container.innerHTML = '<div class="empty">No events match the filter.</div>'; return; }
+
+      let html = `<table>
+        <thead><tr>
+          <th>#</th><th>Timestamp</th><th>User ID</th>
+          <th>Action</th><th>Student ID</th><th>Grade change</th><th>IP Address</th>
+        </tr></thead><tbody>`;
+
+      rows.forEach(r => {
+        const ts = new Date(r.timestamp).toLocaleString();
+        const userId = r.user_id ? r.user_id.slice(0,8)+'…' : '—';
+        const gradeChange = (r.old_grade !== null && r.new_grade !== null)
+          ? `${r.old_grade} → ${r.new_grade}`
+          : '—';
+
+        html += `<tr>
+          <td class="mono">${r.log_id}</td>
+          <td style="white-space:nowrap;color:#6b7280">${ts}</td>
+          <td class="mono" title="${r.user_id || ''}">${userId}</td>
+          <td><span class="badge badge-${r.action_taken}">${r.action_taken}</span></td>
+          <td class="mono">${r.target_student_id ?? '—'}</td>
+          <td class="mono">${gradeChange}</td>
+          <td class="mono">${r.ip_address ?? '—'}</td>
+        </tr>`;
+      });
+
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    function clearFilter() {
+      document.getElementById('filter-action').value = '';
+      document.getElementById('filter-search').value = '';
+      loadLog();
+    }
+  </script>
+</body>
+</html>
