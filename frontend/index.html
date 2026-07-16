@@ -39,6 +39,21 @@
     .alert { padding: .75rem 1rem; border-radius: 8px; font-size: .88rem; margin-bottom: 1.2rem; display: none; }
     .alert.error   { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; display: block; }
     .alert.success { background: #f0fdf4; color: #166534; border: 1px solid #86efac; display: block; }
+    
+    /* Forgot Password Link styling */
+    .forgot-link {
+      display: block; text-align: right; font-size: 0.8rem; 
+      color: #4f46e5; text-decoration: none; margin-top: -0.5rem; margin-bottom: 1.2rem;
+      font-weight: 500; cursor: pointer;
+    }
+    .forgot-link:hover { text-decoration: underline; }
+    
+    /* Recovery Section Panel */
+    #recovery-section { display: none; margin-top: 1.5rem; border-top: 1px solid #e5e7eb; padding-top: 1.5rem; }
+    .back-btn {
+      background: none; border: none; color: #6b7280; font-size: 0.85rem; 
+      cursor: pointer; display: block; margin: 1rem auto 0 auto; text-decoration: underline;
+    }
   </style>
 </head>
 <body>
@@ -47,7 +62,9 @@
       <h1>ExamSystem</h1>
       <p>Internal Examination Management</p>
     </div>
+    
     <div id="alertEl" class="alert" role="alert"></div>
+
     <form id="login-form" novalidate>
       <div class="field">
         <label for="username">Username</label>
@@ -59,8 +76,37 @@
         <input type="password" id="password" autocomplete="current-password" placeholder="Enter your password">
         <span class="field-error" id="password-error">Password is required.</span>
       </div>
+      
+      <a class="forgot-link" id="toggle-recovery">Forgot password?</a>
+
       <button class="btn" type="submit" id="submit-btn">Sign in</button>
     </form>
+
+    <div id="recovery-section">
+      <h3 style="font-size: 1.1rem; margin-bottom: 1rem; color: #1a1a2e; text-align: center;">Reset Password via SMS</h3>
+      
+      <form id="request-otp-form">
+        <div class="field">
+          <label for="recovery-phone">Phone Number</label>
+          <input type="text" id="recovery-phone" placeholder="e.g. +254700000000">
+        </div>
+        <button class="btn" type="submit" id="send-otp-btn">Send OTP Code</button>
+      </form>
+
+      <form id="verify-otp-form" style="display: none; margin-top: 1.5rem;">
+        <div class="field">
+          <label for="otp-code">6-Digit OTP Code</label>
+          <input type="text" id="otp-code" placeholder="Enter OTP">
+        </div>
+        <div class="field">
+          <label for="new-password">New Password</label>
+          <input type="password" id="new-password" placeholder="Enter new password">
+        </div>
+        <button class="btn" type="submit" id="reset-pass-btn">Update Password</button>
+      </form>
+
+      <button class="back-btn" id="back-to-login">Back to Sign In</button>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -79,9 +125,27 @@
       }
     })();
 
-    const form    = document.getElementById('login-form');
+    // UI Navigation triggers
+    const loginForm = document.getElementById('login-form');
+    const recoverySection = document.getElementById('recovery-section');
+    const toggleRecoveryBtn = document.getElementById('toggle-recovery');
+    const backToLoginBtn = document.getElementById('back-to-login');
     const alertEl = document.getElementById('alertEl');
-    const btn     = document.getElementById('submit-btn');
+    const btn = document.getElementById('submit-btn');
+
+    // Switch to Recovery screen
+    toggleRecoveryBtn.addEventListener('click', () => {
+      loginForm.style.display = 'none';
+      recoverySection.style.display = 'block';
+      alertEl.className = 'alert'; // Clear alerts
+    });
+
+    // Switch back to Login screen
+    backToLoginBtn.addEventListener('click', () => {
+      recoverySection.style.display = 'none';
+      loginForm.style.display = 'block';
+      alertEl.className = 'alert'; // Clear alerts
+    });
 
     function setFieldError(fieldId, errorId, show) {
       document.getElementById(fieldId).classList.toggle('error', show);
@@ -92,7 +156,8 @@
       alertEl.className   = 'alert ' + type;
     }
 
-    form.addEventListener('submit', async (e) => {
+    // --- SUBMIT LOGIN ---
+    loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const username = document.getElementById('username').value.trim();
       const password = document.getElementById('password').value;
@@ -108,30 +173,21 @@
       btn.textContent = 'Signing in…';
       alertEl.className = 'alert';
 
-      // Accounts are stored as username@examsystem.local in Supabase Auth
       const email = `${username.toLowerCase()}@examsystem.local`;
 
       try {
         const { data, error } = await _sb.auth.signInWithPassword({ email, password });
 
         if (error || !data.session) {
-          // FORENSIC AUDIT: Log only 'FAILED_LOGIN' action to guarantee database compatibility
           await _sb.from('forensic_audit_log').insert({ 
             action_taken: 'FAILED_LOGIN' 
           });
-
           showAlert('Invalid username or password.', 'error');
           return;
         }
 
-        // Fetch role from profiles table
-        const { data: profile } = await _sb
-          .from('profiles')
-          .select('role')
-          .eq('id', data.user.id)
-          .single();
+        const { data: profile } = await _sb.from('profiles').select('role').eq('id', data.user.id).single();
 
-        // Log the successful login event
         await _sb.from('forensic_audit_log').insert({ 
           action_taken: 'LOGIN' 
         });
@@ -148,6 +204,92 @@
       } finally {
         btn.disabled    = false;
         btn.textContent = 'Sign in';
+      }
+    });
+
+    // --- RECOVERY PROCESS ---
+    const requestOtpForm = document.getElementById('request-otp-form');
+    const verifyOtpForm  = document.getElementById('verify-otp-form');
+    let targetPhone = "";
+
+    // 1. Send OTP Request
+    requestOtpForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      targetPhone = document.getElementById('recovery-phone').value.trim();
+      if (!targetPhone) {
+        showAlert('Please enter your phone number.', 'error');
+        return;
+      }
+
+      const sendBtn = document.getElementById('send-otp-btn');
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Sending...';
+
+      // Request OTP code via SMS for the user
+      const { error } = await _sb.auth.signInWithOtp({ phone: targetPhone });
+
+      if (error) {
+        showAlert('Failed to send code: ' + error.message, 'error');
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Send OTP Code';
+      } else {
+        showAlert('Verification code sent to ' + targetPhone, 'success');
+        requestOtpForm.style.display = 'none';
+        verifyOtpForm.style.display = 'block';
+      }
+    });
+
+    // 2. Verify OTP and change password
+    verifyOtpForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const code = document.getElementById('otp-code').value.trim();
+      const newPassword = document.getElementById('new-password').value;
+
+      if (!code || !newPassword) {
+        showAlert('All fields are required.', 'error');
+        return;
+      }
+
+      const resetBtn = document.getElementById('reset-pass-btn');
+      resetBtn.disabled = true;
+      resetBtn.textContent = 'Updating...';
+
+      // Verify the OTP code
+      const { data, error } = await _sb.auth.verifyOtp({
+        phone: targetPhone,
+        token: code,
+        type: 'sms'
+      });
+
+      if (error) {
+        showAlert('Verification failed: ' + error.message, 'error');
+        resetBtn.disabled = false;
+        resetBtn.textContent = 'Update Password';
+        return;
+      }
+
+      // If OTP verified successfully, update user password
+      const { error: updateError } = await _sb.auth.updateUser({
+        password: newPassword
+      });
+
+      if (updateError) {
+        showAlert('Error resetting password: ' + updateError.message, 'error');
+        resetBtn.disabled = false;
+        resetBtn.textContent = 'Update Password';
+      } else {
+        // Successful password update log
+        await _sb.from('forensic_audit_log').insert({ 
+          action_taken: 'PASSWORD_RESET',
+          details: `Password reset verified for phone number: ${targetPhone}`
+        });
+
+        showAlert('Password reset successfully! Logging you in...', 'success');
+        
+        // Redirect user after short delay
+        setTimeout(() => {
+          window.location.href = 'teacher_dashboard.html';
+        }, 1500);
       }
     });
   </script>
