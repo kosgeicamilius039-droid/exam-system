@@ -115,10 +115,9 @@
         const { data, error } = await _sb.auth.signInWithPassword({ email, password });
 
         if (error || !data.session) {
-          // FORENSIC AUDIT: Log the failed login event to your database table
+          // FORENSIC AUDIT: Log only 'FAILED_LOGIN' action to guarantee database compatibility
           await _sb.from('forensic_audit_log').insert({ 
-            action_taken: 'FAILED_LOGIN', 
-            details: `Failed login attempt for user: ${username}`
+            action_taken: 'FAILED_LOGIN' 
           });
 
           showAlert('Invalid username or password.', 'error');
@@ -134,8 +133,7 @@
 
         // Log the successful login event
         await _sb.from('forensic_audit_log').insert({ 
-          action_taken: 'LOGIN',
-          details: `User ${username} logged in successfully.`
+          action_taken: 'LOGIN' 
         });
 
         showAlert('Login successful. Redirecting…', 'success');
