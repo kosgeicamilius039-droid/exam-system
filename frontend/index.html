@@ -39,7 +39,7 @@
     .alert { padding: .75rem 1rem; border-radius: 8px; font-size: .88rem; margin-bottom: 1.2rem; display: none; }
     .alert.error   { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; display: block; }
     .alert.success { background: #f0fdf4; color: #166534; border: 1px solid #86efac; display: block; }
-    
+
     /* Forgot Password Link styling */
     .forgot-link {
       display: block; text-align: right; font-size: 0.8rem; 
@@ -62,9 +62,9 @@
       <h1>ExamSystem</h1>
       <p>Internal Examination Management</p>
     </div>
-    
     <div id="alertEl" class="alert" role="alert"></div>
 
+    <!-- MAIN LOGIN FORM -->
     <form id="login-form" novalidate>
       <div class="field">
         <label for="username">Username</label>
@@ -76,15 +76,18 @@
         <input type="password" id="password" autocomplete="current-password" placeholder="Enter your password">
         <span class="field-error" id="password-error">Password is required.</span>
       </div>
-      
+
+      <!-- Forgot password link -->
       <a class="forgot-link" id="toggle-recovery">Forgot password?</a>
 
       <button class="btn" type="submit" id="submit-btn">Sign in</button>
     </form>
 
+    <!-- PASSWORD RECOVERY FORM (via Phone SMS) -->
     <div id="recovery-section">
       <h3 style="font-size: 1.1rem; margin-bottom: 1rem; color: #1a1a2e; text-align: center;">Reset Password via SMS</h3>
       
+      <!-- Step 1: Enter phone to request OTP -->
       <form id="request-otp-form">
         <div class="field">
           <label for="recovery-phone">Phone Number</label>
@@ -93,6 +96,7 @@
         <button class="btn" type="submit" id="send-otp-btn">Send OTP Code</button>
       </form>
 
+      <!-- Step 2: Enter code & new password -->
       <form id="verify-otp-form" style="display: none; margin-top: 1.5rem;">
         <div class="field">
           <label for="otp-code">6-Digit OTP Code</label>
@@ -131,7 +135,7 @@
     const toggleRecoveryBtn = document.getElementById('toggle-recovery');
     const backToLoginBtn = document.getElementById('back-to-login');
     const alertEl = document.getElementById('alertEl');
-    const btn = document.getElementById('submit-btn');
+    const btn     = document.getElementById('submit-btn');
 
     // Switch to Recovery screen
     toggleRecoveryBtn.addEventListener('click', () => {
@@ -173,21 +177,30 @@
       btn.textContent = 'Signing in…';
       alertEl.className = 'alert';
 
+      // Accounts are stored as username@examsystem.local in Supabase Auth
       const email = `${username.toLowerCase()}@examsystem.local`;
 
       try {
         const { data, error } = await _sb.auth.signInWithPassword({ email, password });
 
         if (error || !data.session) {
+          // FORENSIC AUDIT: Log only 'FAILED_LOGIN' action to guarantee database compatibility
           await _sb.from('forensic_audit_log').insert({ 
             action_taken: 'FAILED_LOGIN' 
           });
+
           showAlert('Invalid username or password.', 'error');
           return;
         }
 
-        const { data: profile } = await _sb.from('profiles').select('role').eq('id', data.user.id).single();
+        // Fetch role from profiles table
+        const { data: profile } = await _sb
+          .from('profiles')
+          .select('role')
+          .eq('id', data.user.id)
+          .single();
 
+        // Log the successful login event
         await _sb.from('forensic_audit_log').insert({ 
           action_taken: 'LOGIN' 
         });
@@ -280,8 +293,7 @@
       } else {
         // Successful password update log
         await _sb.from('forensic_audit_log').insert({ 
-          action_taken: 'PASSWORD_RESET',
-          details: `Password reset verified for phone number: ${targetPhone}`
+          action_taken: 'PASSWORD_RESET'
         });
 
         showAlert('Password reset successfully! Logging you in...', 'success');
