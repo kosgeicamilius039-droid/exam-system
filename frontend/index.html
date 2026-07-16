@@ -108,12 +108,19 @@
       btn.textContent = 'Signing in…';
       alertEl.className = 'alert';
 
+      // Accounts are stored as username@examsystem.local in Supabase Auth
+      const email = `${username.toLowerCase()}@examsystem.local`;
+
       try {
-        // Accounts are stored as username@examsystem.local in Supabase Auth
-        const email = `${username.toLowerCase()}@examsystem.local`;
         const { data, error } = await _sb.auth.signInWithPassword({ email, password });
 
         if (error || !data.session) {
+          // FORENSIC AUDIT: Log the failed login event to your database table
+          await _sb.from('forensic_audit_log').insert({ 
+            action_taken: 'FAILED_LOGIN', 
+            details: `Failed login attempt for user: ${username}`
+          });
+
           showAlert('Invalid username or password.', 'error');
           return;
         }
@@ -125,8 +132,11 @@
           .eq('id', data.user.id)
           .single();
 
-        // Log the login event
-        await _sb.from('forensic_audit_log').insert({ action_taken: 'LOGIN' });
+        // Log the successful login event
+        await _sb.from('forensic_audit_log').insert({ 
+          action_taken: 'LOGIN',
+          details: `User ${username} logged in successfully.`
+        });
 
         showAlert('Login successful. Redirecting…', 'success');
         setTimeout(() => {
